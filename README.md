@@ -1,5 +1,15 @@
 # SafeOperation
 
+Write safer code with SafeOperation.
+
+```ruby
+any_operation_may_fail = ->{ ... }
+
+SafeOperation.either(any_operation_may_fail) do
+  # must handles failure here
+end
+```
+
 ## Installation
 
 Add this line to your application's Gemfile:
@@ -17,6 +27,40 @@ Or install it yourself as:
     $ gem install safe_operation
 
 ## Usage
+
+```ruby
+class User
+  def self.find(id)
+    new if id == 1
+  end
+
+  def id
+    1
+  end
+
+  def name
+    "User"
+  end
+end
+
+class Guest
+  def id
+    nil
+  end
+
+  def name
+    "Guest"
+  end
+end
+
+SafeOperation.either(->{ User.find(1) }) do
+  Guest.new
+end
+
+SafeOperation.either(->{ User.find(2) }) do
+  Guest.new
+end
+```
 
 ## Contributing
 
