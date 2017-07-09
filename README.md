@@ -90,4 +90,3 @@ The gem is available as open source under the terms of the
 
 Everyone interacting in the SafeOperation project’s codebases, issue trackers is expected to follow
 the [code of conduct](https://github.com/JuanitoFatas/safe_operation/blob/master/CODE_OF_CONDUCT.md).
-
