@@ -5,3 +5,5 @@ gemspec
 
 gem "rake"
 gem "bundler"
+gem "pry"
+gem "rspec", "~> 3.6.0"
