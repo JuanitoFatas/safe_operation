@@ -1,5 +1,7 @@
 # SafeOperation
 
+[![Build Status](https://travis-ci.org/JuanitoFatas/safe_operation.svg?branch=master)](https://travis-ci.org/JuanitoFatas/safe_operation)
+
 Write safer code with SafeOperation.
 
 ```ruby
