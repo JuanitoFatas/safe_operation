@@ -1,18 +1,15 @@
-module SafeOperation
+class SafeOperation
   class Failure
     def initialize(failure)
       @failure = failure
     end
 
-    def result
-      failure
+    def value
+      @failure
     end
 
     def success?
       false
     end
-
-    private
-    attr_reader :failure
   end
 end

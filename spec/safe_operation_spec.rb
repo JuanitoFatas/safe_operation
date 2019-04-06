@@ -1,46 +1,115 @@
 require "spec_helper"
 
 RSpec.describe SafeOperation do
-  it "raises NoFailureHandler when no error handle block specified" do
-    expect { SafeOperation.either(1 + 1) }.to raise_error SafeOperation::NoFailureHandler
-  end
+  context ".run" do
+    class RecordNotFound < StandardError; end
+    class User def self.find(id); new; end; end;
+    class Guest; end
+    class Admin; def initialize(user); end; end
+    class SuperAdmin; def initialize(admin); end; end
 
-  describe "#either" do
-    class User
-      ActiveRecordRecordNotFound = Class.new(StandardError)
+    def success_op
+      @_success_op ||= SafeOperation.run { User.find(42) }
+    end
 
-      def self.find(id)
-        (id == 1) ? new : raise(ActiveRecordRecordNotFound)
+    def failed_op
+      @_failed_op ||= SafeOperation.run { raise(RecordNotFound) }
+    end
+
+    it "successful operation" do
+      expect(success_op.success?).to eq true
+      expect(success_op.value).to be_a User
+    end
+
+    it "failed operation" do
+      expect(failed_op.success?).to eq false
+      expect(failed_op.value).to be_a RecordNotFound
+    end
+
+    it "value_or when succeeded" do
+      actual = success_op.value_or(Guest.new)
+
+      expect(actual).to be_a User
+    end
+
+    it "value_or when failed" do
+      actual = failed_op.value_or(Guest.new)
+
+      expect(actual).to be_a Guest
+    end
+
+    it "value_or_else when succeeded" do
+      actual = success_op.value_or_else do |exception|
+        if exception.is_a?(RecordNotFound)
+          Guest.new
+        else
+          # logging, re-raise, etc.
+        end
       end
 
-      def self.find_by(*); end
+      expect(actual).to be_a User
     end
 
-    class Guest
+    it "value_or_else to handle exception when failed" do
+      actual = failed_op.value_or_else do |exception|
+        if exception.is_a?(RecordNotFound)
+          Guest.new
+        else
+          # logging, re-raise, etc.
+        end
+      end
+
+      expect(actual).to be_a Guest
     end
 
-    it "return success object when operation succeeded" do
-      result = SafeOperation.either(->{ User.find(1) }) { Guest.new }
+    it "and_then + or_else when succeeded" do
+      actual = success_op.
+                 and_then { |user| Admin.new(user) }.
+                 or_else { Guest.new }
 
-      expect(result).to be_a SafeOperation::Success
-      expect(result).to be_success
-      expect(result.result).to be_a User
+      expect(actual.value).to be_a Admin
     end
 
-    it "return failure object when operation raised exception" do
-      result = SafeOperation.either(->{ User.find(2) }) { Guest.new }
+    it "or_else + and_then when succeeded" do
+      actual = success_op.
+                 or_else { Guest.new }.
+                 and_then { |user| Admin.new(user) }
 
-      expect(result).to be_a SafeOperation::Failure
-      expect(result).not_to be_success
-      expect(result.result).to be_a Guest
+      expect(actual.value).to be_a Admin
     end
 
-    it "return failure object when operation returned nil" do
-      result = SafeOperation.either(->{ User.find_by(id: 42) }) { Guest.new }
+    it "and_then chains + or_else when succeeded" do
+      actual = success_op.
+                 and_then { |user| Admin.new(user) }.
+                 and_then { |admin| SuperAdmin.new(admin) }.
+                 or_else { Guest.new }
 
-      expect(result).to be_a SafeOperation::Failure
-      expect(result).not_to be_success
-      expect(result.result).to be_a Guest
+      expect(actual.value).to be_a SuperAdmin
+    end
+
+    it "and_then chains + or_else when succeeded" do
+      actual = success_op.
+                 or_else { Guest.new }.
+                 and_then { |user| Admin.new(user) }.
+                 and_then { |admin| SuperAdmin.new(admin) }
+
+      expect(actual.value).to be_a SuperAdmin
+    end
+
+    it "and_then + or_else when failed" do
+      actual = failed_op.
+                 and_then { |user| Admin.new(user) }.
+                 or_else { Guest.new }
+
+      expect(actual.value).to be_a Guest
+    end
+
+    it "or_else + and_then when failed" do
+      actual = failed_op.
+                 or_else { Guest.new }.
+                 and_then { |user| Admin.new(user) }
+
+      expect(actual.value).to be_a Guest
     end
   end
 end
