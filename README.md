@@ -1,22 +1,9 @@
 # SafeOperation
 
+[![Gem Version](https://badge.fury.io/rb/safe_operation.svg)](https://rubygems.org/gems/safe_operation)
 [![Build Status](https://travis-ci.org/JuanitoFatas/safe_operation.svg?branch=master)](https://travis-ci.org/JuanitoFatas/safe_operation)
 
 Write safer code with SafeOperation.
-
-```ruby
-any_operation_may_fail = ->{ User.find(1) }
-
-operation = SafeOperation.either(any_operation_may_fail) do
-  # MUST handle the failure here
-end
-
-# know if operation succeeded
-operation.success?
-
-# get the result of the performed operation
-operation.result
-```
 
 ## Installation
 
@@ -36,46 +23,68 @@ Or install it yourself as:
 
 ## Usage
 
+No monkey patch.
+
 ```ruby
-class User
-  ActiveRecordRecordNotFound = Class.new(StandardError)
+class RecordNotFound < StandardError; end
+class User def self.find(id); new; end; end;
+class Guest; end
+class Admin; def initialize(user); end; end
+class SuperAdmin; def initialize(admin); end; end
 
-  def self.find(id)
-    (id == 1) ? new : raise(ActiveRecordRecordNotFound)
+operation = SafeOperation.run do
+  User.find(1)
+end
+
+# Know if operation succeeded
+operation.success?
+
+# Get the value of the performed operation
+operation.value
+
+# Common patterns, reloaded
+SafeOperation.run { User.find(1) }.value_or(Guest.new)
+
+# Handling exceptions
+SafeOperation.run { raise(RecordNotFound) }.value_or_else do |exception|
+  if exception.is_a?(RecordNotFound)
+    Guest.new
+  else
+    # logging, re-raise, etc.
   end
-
-  def self.find_by(*); end
 end
 
-class Guest
-end
+# Apply on first operation
+operation = SafeOperation.
+  run { User.find(1) }.
+  and_then { |user| Admin.new(user) }
 
-SafeOperation.either(->{ User.find(1) })
-# => raises an SafeOperation::NoFailureHandler error
+operation.value # #<Admin ...>
 
-SafeOperation.either(->{ User.find(1) }) do
-  Guest.new
-end
-# => returns a SafeOperation::Success object with User
-# => #<SafeOperation::Success:0x007fbc8d8c5ae0 @success=#<User:0x007fbc8d8c5b08>>
+# Chainable
+operation = SafeOperation.
+  run { User.find(1) }.
+  and_then { |user| Admin.new(user) }.
+  and_then { |admin| SuperAdmin.new(admin) }
 
-SafeOperation.either(->{ User.find(2) }) do
-  Guest.new
-end
-# => rescue ActiveRecordRecordNotFound, returns a SafeOperation::Failure object with Guest
-# #<SafeOperation::Failure:0x007fbc8dbb71e0 @failure=#<Guest:0x007fbc8dbb7208>>
+operation.value # #<SuperAdmin ...>
 
-SafeOperation.either(->{ User.find_by(id: 42) }) do
-  Guest.new
-end
-# => returns a SafeOperation::Failure object with Guest
-# #<SafeOperation::Failure:0x007fbc8dbb71e0 @failure=#<Guest:0x007fbc8dbb7208>>
+# Add or_else to handle failed operation
+operation = SafeOperation.
+  run { raise(RecordNotFound) }.
+  and_then { |user| Admin.new(user) }.
+  or_else { Guest.new }
+
+operation.success? # => false
+operation.value # => #<Guest ...>
 ```
+
+See test suite for more examples.
 
 ## Contributing
 
 This project follows the [Moya Contributors Guidelines][moya].
-TLDR: means we give out push access easily and often.
+TLDR: means we give out commit access easily and often.
 
 [moya]: https://github.com/Moya/contributors
 

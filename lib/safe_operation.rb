@@ -1,24 +1,66 @@
 # frozen_string_literal: true
+require "forwardable"
 
 require_relative "safe_operation/version"
 require_relative "safe_operation/success"
 require_relative "safe_operation/failure"
 
-module SafeOperation
-  NoFailureHandler = Class.new NotImplementedError
+class SafeOperation
+  extend Forwardable
 
-  def self.either(maybe_block)
-    raise NoFailureHandler if !block_given?
+  class << self
+    protected(:new)
 
-    if maybe = maybe_block.call
-      Success.new maybe
-    else
-      Failure.new yield
+    def run
+      success(yield)
+    rescue StandardError => exception
+      failure(exception)
     end
-  rescue StandardError
-    Failure.new yield
+
+    def success(value)
+      new(success: value)
+    end
+
+    def failure(value)
+      new(failure: value)
+    end
   end
 
-  NO_FAILURE_HANDLER_MESSAGE = "Please pass in a block to handle the failure 😅"
-  private_constant :NO_FAILURE_HANDLER_MESSAGE
+  def_delegators :@result, :success?, :value
+
+  def initialize(success: nil, failure: nil)
+    @result = success ? Success.new(success) : Failure.new(failure)
+  end
+
+  def value_or(fallback_value)
+    if success?
+      value
+    else
+      fallback_value
+    end
+  end
+
+  def value_or_else(&fallback_block)
+    if success?
+      value
+    else
+      fallback_block.call(value)
+    end
+  end
+
+  def and_then(&block)
+    if success?
+      self.class.success(block.call(value))
+    else
+      self
+    end
+  end
+
+  def or_else(&block)
+    if success?
+      self
+    else
+      self.class.failure(block.call(value))
+    end
+  end
 end
